@@ -5,8 +5,8 @@ export type CreatureKind = "kawaii" | "monster";
 const HIT_W = 36;
 const HIT_H = 40;
 
-export const HOLD_MIN_MS = 2200;
-export const HOLD_MAX_MS = 3800;
+export const HOLD_MIN_MS = 1000;
+export const HOLD_MAX_MS = 1600;
 
 export abstract class Creature extends Phaser.GameObjects.Container {
   readonly kind: CreatureKind;

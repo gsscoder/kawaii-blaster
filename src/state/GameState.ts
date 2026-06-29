@@ -1,9 +1,13 @@
+export const KARMA_MAX = 100;
+export const KARMA_START = 50;
+export const KARMA_KAWAII_HIT = -5;
+export const KARMA_MONSTER_HIT = 10;
+
 export interface GameState {
-  score: number;
-  health: number;
+  karma: number;
   gameOver: boolean;
 }
 
 export function createGameState(): GameState {
-  return { score: 0, health: 3, gameOver: false };
+  return { karma: KARMA_START, gameOver: false };
 }

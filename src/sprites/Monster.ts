@@ -36,9 +36,9 @@ export class Monster extends Creature {
     this.scene.tweens.chain({
       targets: this,
       tweens: [
-        { y: showY, duration: 200, ease: "Back.Out" },
+        { y: showY, duration: 150, ease: "Back.Out" },
         { y: showY, duration: this.holdMs(), ease: "Linear" },
-        { y: buryY, duration: 180, ease: "Back.In" },
+        { y: buryY, duration: 130, ease: "Back.In" },
       ],
       onComplete: () => {
         this.active = false;

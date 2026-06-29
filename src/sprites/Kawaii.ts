@@ -3,7 +3,7 @@ import { Creature } from "./Creature";
 
 const JUMP_H = 10;
 const JUMP_MS = 200;
-const SETTLE_MS = 400;
+const SETTLE_MS = 180;
 
 export class Kawaii extends Creature {
   constructor(scene: Phaser.Scene, x: number, hideY: number) {
@@ -40,7 +40,7 @@ export class Kawaii extends Creature {
     this.scene.tweens.add({
       targets: this,
       y: showY,
-      duration: 200,
+      duration: 150,
       ease: "Back.Out",
       onComplete: () => {
         const holdMs = this.holdMs();
@@ -65,7 +65,7 @@ export class Kawaii extends Creature {
                 this.scene.tweens.add({
                   targets: this,
                   y: buryY,
-                  duration: 180,
+                  duration: 130,
                   ease: "Back.In",
                   onComplete: () => {
                     this.active = false;

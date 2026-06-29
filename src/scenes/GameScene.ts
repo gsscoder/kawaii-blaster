@@ -1,5 +1,11 @@
 import Phaser from "phaser";
-import { createGameState, type GameState } from "../state/GameState";
+import {
+  createGameState,
+  KARMA_KAWAII_HIT,
+  KARMA_MAX,
+  KARMA_MONSTER_HIT,
+  type GameState,
+} from "../state/GameState";
 import { Kawaii } from "../sprites/Kawaii";
 import { Monster } from "../sprites/Monster";
 import type { Creature, CreatureKind } from "../sprites/Creature";
@@ -14,14 +20,33 @@ const HIDE_Y = GROUND_Y + 60;
 const SPAWN_MARGIN = 60;
 const SPAWN_GAP = 90;
 const STAGGER_MS = 180;
+const KARMA_BAR_X = 12;
+const KARMA_BAR_Y = 34;
+const KARMA_BAR_W = 180;
+const KARMA_BAR_H = 12;
+const DARK_PAUSE_MS = 2200;
+
+function karmaFillColor(karma: number): number {
+  if (karma <= 50) return 0x5a6b2a;
+  if (karma <= 70) return 0xc8b030;
+  return 0xf0a0c8;
+}
+
+function karmaTextColor(karma: number): string {
+  if (karma <= 50) return "#8aab4a";
+  if (karma <= 70) return "#e8d050";
+  return "#ffb0d8";
+}
 
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
-  private scoreText!: Phaser.GameObjects.Text;
-  private healthText!: Phaser.GameObjects.Text;
+  private karmaLabel!: Phaser.GameObjects.Text;
+  private karmaBar!: Phaser.GameObjects.Graphics;
   private gameOverText!: Phaser.GameObjects.Text;
+  private darkPauseText!: Phaser.GameObjects.Text;
   private nextWaveKind: CreatureKind = "kawaii";
   private waveRemaining = 0;
+  private karmaPaused = false;
 
   constructor() {
     super({ key: "GameScene" });
@@ -131,6 +156,10 @@ export class GameScene extends Phaser.Scene {
 
   private spawnWave(): void {
     if (this.state.gameOver) return;
+    if (this.karmaPaused) {
+      this.time.delayedCall(300, () => this.spawnWave());
+      return;
+    }
 
     const kind = this.nextWaveKind;
     this.nextWaveKind = kind === "kawaii" ? "monster" : "kawaii";
@@ -153,7 +182,7 @@ export class GameScene extends Phaser.Scene {
       creature.on("pointerdown", () => this.onCreatureClick(creature));
 
       this.time.delayedCall(i * STAGGER_MS, () => {
-        if (this.state.gameOver || creature.isRetired()) return;
+        if (this.state.gameOver || this.karmaPaused || creature.isRetired()) return;
         creature.popup(GROUND_Y, () => this.onCreatureDone(creature));
       });
     }
@@ -195,53 +224,94 @@ export class GameScene extends Phaser.Scene {
 
   private onCreatureClick(creature: Creature): void {
     if (this.state.gameOver || creature.isRetired()) return;
-    if (creature.kind === "kawaii") {
-      this.state.score += 10;
-    } else {
-      this.state.health -= 1;
-    }
+
+    const delta = creature.kind === "kawaii" ? KARMA_KAWAII_HIT : KARMA_MONSTER_HIT;
+    this.applyKarma(delta);
+
     creature.retire();
     this.finishWaveCreature();
+  }
+
+  private applyKarma(delta: number): void {
+    const prev = this.state.karma;
+    this.state.karma = Phaser.Math.Clamp(this.state.karma + delta, 0, KARMA_MAX);
     this.updateHUD();
-    if (this.state.health <= 0) this.triggerGameOver();
+
+    if (this.state.karma >= KARMA_MAX) {
+      this.triggerGameOver("cuteness killed you");
+      return;
+    }
+
+    if (prev > 0 && this.state.karma <= 0) {
+      this.showDarkPause();
+    }
+  }
+
+  private showDarkPause(): void {
+    if (this.karmaPaused || this.state.gameOver) return;
+    this.karmaPaused = true;
+    this.darkPauseText.setVisible(true);
+    this.time.delayedCall(DARK_PAUSE_MS, () => {
+      this.darkPauseText.setVisible(false);
+      this.karmaPaused = false;
+    });
   }
 
   // --- HUD ---
 
   private buildHUD(): void {
-    this.scoreText = this.add.text(12, 12, "Score: 0", {
+    this.karmaLabel = this.add.text(12, 12, "Karma 50", {
       fontSize: "18px",
-      color: "#d8ccb0",
+      color: karmaTextColor(KARMA_MAX / 2),
       stroke: "#1a0818",
       strokeThickness: 3,
     }).setDepth(20);
 
-    this.healthText = this.add.text(12, 36, "Souls: ♥♥♥", {
-      fontSize: "18px",
-      color: "#cc3333",
-      stroke: "#1a0818",
-      strokeThickness: 3,
-    }).setDepth(20);
+    this.karmaBar = this.add.graphics().setDepth(20);
 
-    this.gameOverText = this.add.text(CANVAS_W / 2, CANVAS_H / 2, "YOUR SOUL\nIS FORFEIT", {
+    this.darkPauseText = this.add.text(CANVAS_W / 2, CANVAS_H / 2 - 40, "you're growing darker", {
+      fontSize: "32px",
+      color: "#8aab4a",
+      stroke: "#1a0818",
+      strokeThickness: 5,
+      align: "center",
+    }).setOrigin(0.5).setDepth(30).setVisible(false);
+
+    this.gameOverText = this.add.text(CANVAS_W / 2, CANVAS_H / 2, "cuteness killed you", {
       fontSize: "40px",
-      color: "#ff5500",
+      color: "#ffb0d8",
       stroke: "#1a0818",
       strokeThickness: 6,
       align: "center",
     }).setOrigin(0.5).setDepth(30).setVisible(false);
+
+    this.updateHUD();
   }
 
   private updateHUD(): void {
-    this.scoreText.setText(`Score: ${this.state.score}`);
-    const hearts = "♥".repeat(Math.max(0, this.state.health));
-    this.healthText.setText(`Souls: ${hearts}`);
+    const karma = this.state.karma;
+    this.karmaLabel.setText(`Karma ${karma}`);
+    this.karmaLabel.setColor(karmaTextColor(karma));
+
+    this.karmaBar.clear();
+    this.karmaBar.fillStyle(0x1a0818);
+    this.karmaBar.fillRect(KARMA_BAR_X, KARMA_BAR_Y, KARMA_BAR_W, KARMA_BAR_H);
+    this.karmaBar.lineStyle(1, 0x3a2848);
+    this.karmaBar.strokeRect(KARMA_BAR_X, KARMA_BAR_Y, KARMA_BAR_W, KARMA_BAR_H);
+
+    const fillW = (karma / KARMA_MAX) * KARMA_BAR_W;
+    if (fillW > 0) {
+      this.karmaBar.fillStyle(karmaFillColor(karma));
+      this.karmaBar.fillRect(KARMA_BAR_X, KARMA_BAR_Y, fillW, KARMA_BAR_H);
+    }
   }
 
-  private triggerGameOver(): void {
+  private triggerGameOver(message: string): void {
     this.state.gameOver = true;
+    this.gameOverText.setText(message);
     this.gameOverText.setVisible(true);
     this.time.removeAllEvents();
+    this.tweens.killAll();
   }
 
   update(): void {
