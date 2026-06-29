@@ -8,7 +8,7 @@ import {
 } from "../state/GameState";
 import { Kawaii } from "../sprites/Kawaii";
 import { Monster } from "../sprites/Monster";
-import type { Creature, CreatureKind } from "../sprites/Creature";
+import type { Creature } from "../sprites/Creature";
 
 const CANVAS_W = 800;
 const CANVAS_H = 450;
@@ -19,7 +19,6 @@ const WAVE_PAUSE_MAX = 2200;
 const HIDE_Y = GROUND_Y + 60;
 const SPAWN_MARGIN = 60;
 const SPAWN_GAP = 90;
-const STAGGER_MS = 180;
 const KARMA_BAR_X = 12;
 const KARMA_BAR_Y = 34;
 const KARMA_BAR_W = 180;
@@ -44,9 +43,10 @@ export class GameScene extends Phaser.Scene {
   private karmaBar!: Phaser.GameObjects.Graphics;
   private gameOverText!: Phaser.GameObjects.Text;
   private darkPauseText!: Phaser.GameObjects.Text;
-  private nextWaveKind: CreatureKind = "kawaii";
+  private pauseText!: Phaser.GameObjects.Text;
   private waveRemaining = 0;
   private karmaPaused = false;
+  private gamePaused = false;
 
   constructor() {
     super({ key: "GameScene" });
@@ -58,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.drawBackdrop();
     this.drawLandscape();
     this.buildHUD();
+    this.bindPauseInput();
     this.scheduleWave();
   }
 
@@ -156,36 +157,39 @@ export class GameScene extends Phaser.Scene {
 
   private spawnWave(): void {
     if (this.state.gameOver) return;
-    if (this.karmaPaused) {
+    if (this.karmaPaused || this.gamePaused) {
       this.time.delayedCall(300, () => this.spawnWave());
       return;
     }
 
-    const kind = this.nextWaveKind;
-    this.nextWaveKind = kind === "kawaii" ? "monster" : "kawaii";
+    const kawaiiCount = Phaser.Math.Between(1, 2);
+    const monsterCount = Phaser.Math.Between(1, 3);
+    const total = kawaiiCount + monsterCount;
 
-    const count = kind === "kawaii"
-      ? Phaser.Math.Between(1, 2)
-      : Phaser.Math.Between(1, 3);
+    this.waveRemaining = total;
+    const positions = this.pickSpreadPositions(total);
+    const kinds = this.buildWaveKinds(kawaiiCount, monsterCount);
 
-    this.waveRemaining = count;
-    const positions = this.pickSpreadPositions(count);
-
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < total; i++) {
       const x = positions[i];
-      if (x === undefined) continue;
+      const kind = kinds[i];
+      if (x === undefined || kind === undefined) continue;
 
       const creature: Creature = kind === "kawaii"
         ? new Kawaii(this, x, HIDE_Y)
         : new Monster(this, x, HIDE_Y);
 
       creature.on("pointerdown", () => this.onCreatureClick(creature));
-
-      this.time.delayedCall(i * STAGGER_MS, () => {
-        if (this.state.gameOver || this.karmaPaused || creature.isRetired()) return;
-        creature.popup(GROUND_Y, () => this.onCreatureDone(creature));
-      });
+      creature.popup(GROUND_Y, () => this.onCreatureDone(creature));
     }
+  }
+
+  private buildWaveKinds(kawaiiCount: number, monsterCount: number): ("kawaii" | "monster")[] {
+    const kinds: ("kawaii" | "monster")[] = [];
+    for (let i = 0; i < kawaiiCount; i++) kinds.push("kawaii");
+    for (let i = 0; i < monsterCount; i++) kinds.push("monster");
+    Phaser.Utils.Array.Shuffle(kinds);
+    return kinds;
   }
 
   private pickSpreadPositions(count: number): number[] {
@@ -206,7 +210,7 @@ export class GameScene extends Phaser.Scene {
         positions.push(Math.round(slot));
       }
     }
-    return positions;
+    return positions.sort((a, b) => a - b);
   }
 
   private onCreatureDone(creature: Creature): void {
@@ -223,7 +227,7 @@ export class GameScene extends Phaser.Scene {
   // --- click ---
 
   private onCreatureClick(creature: Creature): void {
-    if (this.state.gameOver || creature.isRetired()) return;
+    if (this.state.gameOver || this.gamePaused || creature.isRetired()) return;
 
     const delta = creature.kind === "kawaii" ? KARMA_KAWAII_HIT : KARMA_MONSTER_HIT;
     this.applyKarma(delta);
@@ -257,6 +261,33 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // --- pause ---
+
+  private bindPauseInput(): void {
+    const keyboard = this.input.keyboard;
+    if (keyboard === null) return;
+    keyboard.on("keydown-P", () => {
+      if (this.state.gameOver) return;
+      if (this.gamePaused) this.resumeGame();
+      else this.pauseGame();
+    });
+  }
+
+  private pauseGame(): void {
+    this.gamePaused = true;
+    this.time.paused = true;
+    this.tweens.pauseAll();
+    this.pauseText.setVisible(true);
+  }
+
+  private resumeGame(): void {
+    if (!this.gamePaused) return;
+    this.gamePaused = false;
+    this.time.paused = false;
+    this.tweens.resumeAll();
+    this.pauseText.setVisible(false);
+  }
+
   // --- HUD ---
 
   private buildHUD(): void {
@@ -284,6 +315,17 @@ export class GameScene extends Phaser.Scene {
       strokeThickness: 6,
       align: "center",
     }).setOrigin(0.5).setDepth(30).setVisible(false);
+
+    this.pauseText = this.add.text(CANVAS_W / 2, CANVAS_H / 2, "GAME PAUSED", {
+      fontSize: "44px",
+      color: "#d8ccb0",
+      stroke: "#1a0818",
+      strokeThickness: 6,
+      align: "center",
+    }).setOrigin(0.5).setDepth(35).setVisible(false);
+
+    this.pauseText.setInteractive({ useHandCursor: true });
+    this.pauseText.on("pointerdown", () => this.resumeGame());
 
     this.updateHUD();
   }
