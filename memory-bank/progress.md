@@ -1,10 +1,11 @@
 # Project Progress
 
 ## Status
-Not started
+Minimla game
 
 ## Current Focus
-Scaffolding the project
+Defining game dynamics
 
 ## Recent Changes
 - Add minimal MD files
+- Built gothic presentation, procedural bunny/skeleton sprites, distinct emerge animations

@@ -1,0 +1,57 @@
+{
+  "name": "ctx_batch_execute",
+  "description": "Run multiple commands in ONE call. Every command's output is auto-indexed into the knowledge base; if you also pass `queries`, the matching sections come back in the same round trip so a follow-up search call is not needed.\n\nConcurrency parallelizes the FETCH phase (run-the-commands). The DERIVATION phase — turning raw output into an answer — still belongs in code: add a processing command that consumes the indexed output and prints only the answer, so the raw bytes never enter your conversation (Think-in-Code, same principle as the sandbox tool).\n\nWHEN:\n  - You have 3+ related commands you would otherwise run sequentially (multi-issue lookups, git log + git diff + git blame, multi-file reads, multi-region cloud queries)\n  - You want to gather AND query in one round trip — pass `queries` so the matching sections come back inline\n  - You want to parallelize I/O-bound work — pass `concurrency` 2-8 (network calls, gh CLI, cloud APIs, multi-repo git reads)\n  - The combined output is large enough that piping it through ctx_search later would itself be expensive — let auto-index + inline queries do both in one shot\n\nWHEN NOT:\n  - Single command with no follow-up query — run it in the sandbox tool directly\n  - CPU-bound or stateful commands — keep concurrency at 1 (npm test, build, lint, port-binding servers, lock-file holders, anything that races on the same resource)\n\nRETURNS:\n  Auto-indexed section list per command label, plus top matches per query (when `queries` is passed). Raw output is NOT echoed in full — only the matched windows. Concurrency>1 switches each command to its own per-command timeout (no shared budget); concurrency=1 preserves the legacy shared-budget cascading-skip-on-timeout path. Use 4-8 for I/O-bound batches; keep at 1 for CPU work or shared-state commands; lower the value when target hosts enforce per-IP rate limits.\n\nEXAMPLE: ctx_batch_execute(\n  commands: [\n    {label: \"issue 1\", command: \"gh issue view 1\"},\n    {label: \"issue 2\", command: \"gh issue view 2\"},\n    {label: \"summarize\", command: \"echo done\"}\n  ],\n  queries: [\"root cause\", \"proposed fix\"],\n  concurrency: 2\n)",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "description": "Section header for this command's output (e.g., 'README', 'Package.json', 'Source Tree')"
+            },
+            "command": {
+              "type": "string",
+              "description": "Shell command to execute"
+            }
+          },
+          "required": [
+            "label",
+            "command"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "description": "Commands to execute as a batch. Output is labeled with the section header. Default order is sequential; pass concurrency>1 to run in parallel (output stays in input order)."
+      },
+      "queries": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Search queries to extract information from indexed output. Use 5-8 comprehensive queries. Each returns top 5 matching sections with full content. This is your ONLY chance — put ALL your questions here. No follow-up calls needed."
+      },
+      "timeout": {
+        "type": "number",
+        "description": "Max execution time in ms. When omitted, no server-side timer fires — the MCP host's RPC timeout governs. With concurrency=1, the value (when set) is a shared budget across commands; with concurrency>1, it is applied per-command."
+      },
+      "concurrency": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 8,
+        "default": 1,
+        "description": "Max commands to run in parallel (1-8, default: 1). Use 4-8 for I/O-bound batches (network, gh, curl, multi-repo git reads). Keep at 1 for CPU-bound (npm test, build, lint) or stateful commands (ports, locks). >1 switches to per-command timeouts (no shared budget) and individual `(timed out)` blocks instead of cascading skip."
+      }
+    },
+    "required": [
+      "commands",
+      "queries"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

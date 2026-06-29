@@ -2,34 +2,58 @@ import Phaser from "phaser";
 
 export type CreatureKind = "kawaii" | "monster";
 
-export abstract class Creature extends Phaser.GameObjects.Rectangle {
-  readonly kind: CreatureKind;
-  private active = false;
+const HIT_W = 36;
+const HIT_H = 40;
 
-  constructor(scene: Phaser.Scene, x: number, hideY: number, kind: CreatureKind, color: number) {
-    super(scene, x, hideY, 32, 32, color);
+export const HOLD_MIN_MS = 2200;
+export const HOLD_MAX_MS = 3800;
+
+export abstract class Creature extends Phaser.GameObjects.Container {
+  readonly kind: CreatureKind;
+  protected active = false;
+  private retired = false;
+
+  constructor(scene: Phaser.Scene, x: number, hideY: number, kind: CreatureKind) {
+    super(scene, x, hideY);
     this.kind = kind;
+
+    const gfx = scene.add.graphics();
+    this.drawSprite(gfx);
+    this.add(gfx);
+
     scene.add.existing(this);
     this.setDepth(5);
-    this.setInteractive();
+    this.setInteractive(
+      new Phaser.Geom.Rectangle(-HIT_W / 2, -HIT_H / 2, HIT_W, HIT_H),
+      Phaser.Geom.Rectangle.Contains,
+    );
   }
 
-  popup(groundY: number, onComplete: () => void): void {
-    if (this.active) return;
-    this.active = true;
-    const showY = groundY - 24;
+  protected abstract drawSprite(gfx: Phaser.GameObjects.Graphics): void;
 
-    this.scene.tweens.chain({
-      targets: this,
-      tweens: [
-        { y: showY, duration: 200, ease: "Back.Out" },
-        { y: showY, duration: Phaser.Math.Between(600, 1200), ease: "Linear" },
-        { y: this.y + 80, duration: 180, ease: "Back.In" },
-      ],
-      onComplete: () => {
-        this.active = false;
-        onComplete();
-      },
-    });
+  abstract popup(groundY: number, onComplete: () => void): void;
+
+  protected showY(groundY: number): number {
+    return groundY - 24;
+  }
+
+  protected hideY(): number {
+    return this.y + 80;
+  }
+
+  protected holdMs(): number {
+    return Phaser.Math.Between(HOLD_MIN_MS, HOLD_MAX_MS);
+  }
+
+  isRetired(): boolean {
+    return this.retired;
+  }
+
+  retire(): void {
+    if (this.retired) return;
+    this.retired = true;
+    this.active = false;
+    this.scene.tweens.killTweensOf(this);
+    this.destroy();
   }
 }
