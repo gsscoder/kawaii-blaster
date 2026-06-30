@@ -18,11 +18,13 @@ The environment is a single landscape: a horizontal ground line with a little va
 
 From behind the landscape, sprites pop up briefly and then duck back down. You click to shoot.
 
-**Shoot these — earn points:**
-little bunnies, little cats, and other small kawaii creatures. Stylized, adorable, and very much the target.
+**Shoot these — karma goes down:**
+little bunnies, little cats, and other small kawaii creatures. Stylized, adorable, and very much the target. Each hit lowers your karma.
 
-**Avoid these — or lose health:**
-skeletons, zombies, and other monsters. Killing one costs you life energy instead of rewarding you.
+**Avoid these — or karma goes up:**
+skeletons, zombies, and other monsters. Shooting one raises your karma instead of lowering it. Letting a kawaii escape without firing also raises it.
+
+Karma starts at 50. Hit 100 and the run ends. Otherwise you keep going.
 
 The challenge is not reflexes alone — it is resisting the instinct to shoot the monster and instead blasting the bunny.
 

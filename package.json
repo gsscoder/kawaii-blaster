@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "start": "npx serve .",
     "build": "esbuild src/main.ts --bundle --outfile=dist/game.js",
     "dev": "esbuild src/main.ts --bundle --outfile=dist/game.js --watch"
   },
   "dependencies": {
-    "phaser": "^3.88.2"
+    "phaser": "3.90.0"
   },
   "devDependencies": {
-    "esbuild": "^0.25.5",
-    "typescript": "^5.8.3"
+    "esbuild": "0.25.12",
+    "serve": "14.2.6",
+    "typescript": "5.9.3"
   }
 }
