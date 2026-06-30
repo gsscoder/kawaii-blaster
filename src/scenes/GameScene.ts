@@ -44,9 +44,12 @@ export class GameScene extends Phaser.Scene {
   private gameOverText!: Phaser.GameObjects.Text;
   private darkPauseText!: Phaser.GameObjects.Text;
   private pauseText!: Phaser.GameObjects.Text;
+  private titleText!: Phaser.GameObjects.Text;
+  private promptText!: Phaser.GameObjects.Text;
   private waveRemaining = 0;
   private karmaPaused = false;
   private gamePaused = false;
+  private gameStarted = false;
 
   constructor() {
     super({ key: "GameScene" });
@@ -58,7 +61,59 @@ export class GameScene extends Phaser.Scene {
     this.drawBackdrop();
     this.drawLandscape();
     this.buildHUD();
+    this.showTitleScreen();
+    this.bindStartInput();
     this.bindPauseInput();
+  }
+
+  // --- title ---
+
+  private showTitleScreen(): void {
+    this.titleText = this.add.text(CANVAS_W / 2, CANVAS_H / 2 - 40, "Kawaii Blaster", {
+      fontFamily: "Creepster, cursive",
+      fontSize: "88px",
+      color: "#ffb0d8",
+      stroke: "#1a0818",
+      strokeThickness: 8,
+      align: "center",
+    }).setOrigin(0.5).setDepth(40);
+
+    this.promptText = this.add.text(CANVAS_W / 2, CANVAS_H / 2 + 72, "any key/click to start", {
+      fontFamily: "VT323, monospace",
+      fontSize: "30px",
+      color: "#d8ccb0",
+      stroke: "#1a0818",
+      strokeThickness: 4,
+      align: "center",
+    }).setOrigin(0.5).setDepth(40);
+
+    this.tweens.add({
+      targets: this.promptText,
+      alpha: 0.3,
+      duration: 750,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut",
+    });
+  }
+
+  private bindStartInput(): void {
+    const start = (): void => {
+      if (this.gameStarted) return;
+      this.startGame();
+    };
+    this.input.once("pointerdown", start);
+    const keyboard = this.input.keyboard;
+    if (keyboard !== null) keyboard.once("keydown", start);
+  }
+
+  private startGame(): void {
+    this.gameStarted = true;
+    this.tweens.killTweensOf(this.promptText);
+    this.titleText.destroy();
+    this.promptText.destroy();
+    this.karmaLabel.setVisible(true);
+    this.karmaBar.setVisible(true);
     this.scheduleWave();
   }
 
@@ -232,7 +287,7 @@ export class GameScene extends Phaser.Scene {
     const delta = creature.kind === "kawaii" ? KARMA_KAWAII_HIT : KARMA_MONSTER_HIT;
     this.applyKarma(delta);
 
-    creature.retire();
+    creature.hit();
     this.finishWaveCreature();
   }
 
@@ -267,7 +322,7 @@ export class GameScene extends Phaser.Scene {
     const keyboard = this.input.keyboard;
     if (keyboard === null) return;
     keyboard.on("keydown-P", () => {
-      if (this.state.gameOver) return;
+      if (this.state.gameOver || !this.gameStarted) return;
       if (this.gamePaused) this.resumeGame();
       else this.pauseGame();
     });
@@ -296,9 +351,9 @@ export class GameScene extends Phaser.Scene {
       color: karmaTextColor(KARMA_MAX / 2),
       stroke: "#1a0818",
       strokeThickness: 3,
-    }).setDepth(20);
+    }).setDepth(20).setVisible(false);
 
-    this.karmaBar = this.add.graphics().setDepth(20);
+    this.karmaBar = this.add.graphics().setDepth(20).setVisible(false);
 
     this.darkPauseText = this.add.text(CANVAS_W / 2, CANVAS_H / 2 - 40, "you're growing darker", {
       fontSize: "32px",

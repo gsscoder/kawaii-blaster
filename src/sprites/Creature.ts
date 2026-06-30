@@ -7,6 +7,11 @@ const HIT_H = 40;
 
 export const HOLD_MIN_MS = 1000;
 export const HOLD_MAX_MS = 1600;
+const MOTION_SCALE = 1 / 0.85;
+
+export function motionMs(ms: number): number {
+  return Math.round(ms * MOTION_SCALE);
+}
 
 export abstract class Creature extends Phaser.GameObjects.Container {
   readonly kind: CreatureKind;
@@ -49,6 +54,15 @@ export abstract class Creature extends Phaser.GameObjects.Container {
     return this.retired;
   }
 
+  hit(): void {
+    if (this.retired) return;
+    this.retired = true;
+    this.active = false;
+    this.disableInteractive();
+    this.scene.tweens.killTweensOf(this);
+    this.playHitEffect(() => this.destroy());
+  }
+
   retire(): void {
     if (this.retired) return;
     this.retired = true;
@@ -56,4 +70,6 @@ export abstract class Creature extends Phaser.GameObjects.Container {
     this.scene.tweens.killTweensOf(this);
     this.destroy();
   }
+
+  protected abstract playHitEffect(onComplete: () => void): void;
 }
