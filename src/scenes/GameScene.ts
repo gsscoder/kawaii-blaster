@@ -9,6 +9,7 @@ import {
 import { Kawaii } from "../sprites/Kawaii";
 import { Monster } from "../sprites/Monster";
 import type { Creature } from "../sprites/Creature";
+import { RetroMusic } from "../audio/RetroMusic";
 
 const CANVAS_W = 800;
 const CANVAS_H = 450;
@@ -24,6 +25,34 @@ const KARMA_BAR_Y = 34;
 const KARMA_BAR_W = 180;
 const KARMA_BAR_H = 12;
 const DARK_PAUSE_MS = 2200;
+const DOUBLE_CLICK_MS = 350;
+const DOUBLE_CLICK_DIST = 14;
+
+const TITLE_Y = CANVAS_H / 2 - 88;
+const PROMPT_Y = CANVAS_H / 2 + 52;
+const PROMPT_CONTROLS_Y = CANVAS_H / 2 + 118;
+
+const PROMPT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+  fontFamily: "VT323, monospace",
+  fontSize: "30px",
+  color: "#d8ccb0",
+  stroke: "#1a0818",
+  strokeThickness: 4,
+  align: "center",
+};
+
+const PROMPT_START = "any key/click to start";
+const PROMPT_CONTROLS = [
+  "P - pause the game",
+  "N - restart the game",
+  "Q - quit the game",
+  "",
+  "(ready? press again)",
+].join("\n");
+const CONFIRM_NEW_GAME = "restart the game?\nY / N";
+const CONFIRM_QUIT = "quit the game?\nY / N";
+
+type ConfirmAction = "newGame" | "quit";
 
 function karmaFillColor(karma: number): number {
   if (karma <= 50) return 0x5a6b2a;
@@ -44,12 +73,22 @@ export class GameScene extends Phaser.Scene {
   private gameOverText!: Phaser.GameObjects.Text;
   private darkPauseText!: Phaser.GameObjects.Text;
   private pauseText!: Phaser.GameObjects.Text;
+  private confirmPromptText!: Phaser.GameObjects.Text;
   private titleText!: Phaser.GameObjects.Text;
   private promptText!: Phaser.GameObjects.Text;
   private waveRemaining = 0;
   private karmaPaused = false;
   private gamePaused = false;
   private gameStarted = false;
+  private confirmPromptActive = false;
+  private confirmAction: ConfirmAction | null = null;
+  private wasPausedBeforeConfirm = false;
+  private audioReady = false;
+  private readonly music = new RetroMusic();
+  private startHandler?: () => void;
+  private lastPauseClickAt = 0;
+  private lastPauseClickX = 0;
+  private lastPauseClickY = 0;
 
   constructor() {
     super({ key: "GameScene" });
@@ -63,13 +102,14 @@ export class GameScene extends Phaser.Scene {
     this.buildHUD();
     this.showTitleScreen();
     this.bindStartInput();
-    this.bindPauseInput();
+    this.bindGameplayKeys();
+    this.bindPausePointer();
   }
 
   // --- title ---
 
-  private showTitleScreen(): void {
-    this.titleText = this.add.text(CANVAS_W / 2, CANVAS_H / 2 - 40, "Kawaii Blaster", {
+  private showTitleScreen(prompt: string = PROMPT_START): void {
+    this.titleText = this.add.text(CANVAS_W / 2, TITLE_Y, "Kawaii Blaster", {
       fontFamily: "Creepster, cursive",
       fontSize: "88px",
       color: "#ffb0d8",
@@ -78,15 +118,25 @@ export class GameScene extends Phaser.Scene {
       align: "center",
     }).setOrigin(0.5).setDepth(40);
 
-    this.promptText = this.add.text(CANVAS_W / 2, CANVAS_H / 2 + 72, "any key/click to start", {
-      fontFamily: "VT323, monospace",
-      fontSize: "30px",
-      color: "#d8ccb0",
-      stroke: "#1a0818",
-      strokeThickness: 4,
-      align: "center",
-    }).setOrigin(0.5).setDepth(40);
+    this.buildPrompt(prompt, prompt === PROMPT_CONTROLS ? PROMPT_CONTROLS_Y : PROMPT_Y);
+  }
 
+  private buildPrompt(message: string, y: number = PROMPT_Y): void {
+    if (this.promptText !== undefined) {
+      this.tweens.killTweensOf(this.promptText);
+      this.promptText.destroy();
+    }
+
+    this.promptText = this.add
+      .text(CANVAS_W / 2, y, message, PROMPT_STYLE)
+      .setOrigin(0.5)
+      .setDepth(40);
+
+    this.blinkPrompt();
+  }
+
+  private blinkPrompt(): void {
+    this.tweens.killTweensOf(this.promptText);
     this.tweens.add({
       targets: this.promptText,
       alpha: 0.3,
@@ -98,17 +148,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   private bindStartInput(): void {
-    const start = (): void => {
+    const engage = (): void => {
       if (this.gameStarted) return;
+      if (!this.audioReady) {
+        this.audioReady = true;
+        this.music.unlock();
+        this.music.playAttract();
+        this.buildPrompt(PROMPT_CONTROLS, PROMPT_CONTROLS_Y);
+        return;
+      }
       this.startGame();
     };
-    this.input.once("pointerdown", start);
+    this.startHandler = engage;
+    this.input.on("pointerdown", engage);
     const keyboard = this.input.keyboard;
-    if (keyboard !== null) keyboard.once("keydown", start);
+    if (keyboard !== null) keyboard.on("keydown", engage);
+  }
+
+  private unbindStartInput(): void {
+    const handler = this.startHandler;
+    if (handler === undefined) return;
+    this.input.off("pointerdown", handler);
+    const keyboard = this.input.keyboard;
+    if (keyboard !== null) keyboard.off("keydown", handler);
+    this.startHandler = undefined;
   }
 
   private startGame(): void {
+    this.unbindStartInput();
     this.gameStarted = true;
+    this.music.playGame();
     this.tweens.killTweensOf(this.promptText);
     this.titleText.destroy();
     this.promptText.destroy();
@@ -316,22 +385,141 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  // --- pause ---
+  // --- gameplay keys ---
 
-  private bindPauseInput(): void {
+  private bindGameplayKeys(): void {
     const keyboard = this.input.keyboard;
     if (keyboard === null) return;
-    keyboard.on("keydown-P", () => {
-      if (this.state.gameOver || !this.gameStarted) return;
-      if (this.gamePaused) this.resumeGame();
-      else this.pauseGame();
+    keyboard.on("keydown", (event: KeyboardEvent) => {
+      const key = event.key.toUpperCase();
+
+      if (key === "Y" && this.confirmPromptActive) {
+        this.acceptConfirm();
+        return;
+      }
+
+      if (key === "N" && this.confirmPromptActive) {
+        this.cancelConfirm();
+        return;
+      }
+
+      if (key === "P") {
+        if (this.state.gameOver || !this.gameStarted || this.confirmPromptActive) return;
+        if (this.gamePaused) this.resumeGame();
+        else this.pauseGame();
+        return;
+      }
+
+      if (key === "N") {
+        if (!this.gameStarted || this.state.gameOver || this.confirmPromptActive) return;
+        this.showConfirmPrompt("newGame");
+        return;
+      }
+
+      if (key === "Q") {
+        if (!this.gameStarted || this.state.gameOver || this.confirmPromptActive) return;
+        this.showConfirmPrompt("quit");
+      }
     });
+  }
+
+  private bindPausePointer(): void {
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (this.state.gameOver || !this.gameStarted || this.confirmPromptActive) return;
+
+      const now = performance.now();
+      const elapsed = now - this.lastPauseClickAt;
+      const dx = Math.abs(pointer.x - this.lastPauseClickX);
+      const dy = Math.abs(pointer.y - this.lastPauseClickY);
+
+      if (elapsed <= DOUBLE_CLICK_MS && dx <= DOUBLE_CLICK_DIST && dy <= DOUBLE_CLICK_DIST) {
+        this.lastPauseClickAt = 0;
+        if (this.gamePaused) this.resumeGame();
+        else this.pauseGame();
+        return;
+      }
+
+      this.lastPauseClickAt = now;
+      this.lastPauseClickX = pointer.x;
+      this.lastPauseClickY = pointer.y;
+    });
+  }
+
+  private showConfirmPrompt(action: ConfirmAction): void {
+    this.wasPausedBeforeConfirm = this.gamePaused;
+    if (!this.gamePaused) this.pauseGame();
+    this.confirmPromptActive = true;
+    this.confirmAction = action;
+    this.confirmPromptText.setText(action === "newGame" ? CONFIRM_NEW_GAME : CONFIRM_QUIT);
+    this.confirmPromptText.setVisible(true);
+  }
+
+  private cancelConfirm(): void {
+    this.confirmPromptActive = false;
+    this.confirmAction = null;
+    this.confirmPromptText.setVisible(false);
+    if (!this.wasPausedBeforeConfirm) this.resumeGame();
+  }
+
+  private acceptConfirm(): void {
+    const action = this.confirmAction;
+    this.confirmPromptActive = false;
+    this.confirmAction = null;
+    this.confirmPromptText.setVisible(false);
+    if (action === "newGame") this.restartGame();
+    else if (action === "quit") this.quitToTitle();
+  }
+
+  private restartGame(): void {
+    this.resetGameplay();
+    this.music.playGame(true);
+    this.updateHUD();
+    this.scheduleWave();
+  }
+
+  private quitToTitle(): void {
+    this.resetGameplay();
+    this.gameStarted = false;
+    this.karmaLabel.setVisible(false);
+    this.karmaBar.setVisible(false);
+    this.music.playAttract();
+    this.showTitleScreen(PROMPT_CONTROLS);
+    this.bindStartInput();
+  }
+
+  private resetGameplay(): void {
+    this.time.removeAllEvents();
+    this.tweens.killAll();
+    this.clearCreatures();
+
+    this.state = createGameState();
+    this.waveRemaining = 0;
+    this.karmaPaused = false;
+    this.darkPauseText.setVisible(false);
+    this.gameOverText.setVisible(false);
+
+    if (this.gamePaused) {
+      this.gamePaused = false;
+      this.time.paused = false;
+      this.tweens.resumeAll();
+      this.pauseText.setVisible(false);
+    }
+  }
+
+  private clearCreatures(): void {
+    for (const child of [...this.children.list]) {
+      if (child instanceof Kawaii || child instanceof Monster) {
+        this.tweens.killTweensOf(child);
+        child.destroy();
+      }
+    }
   }
 
   private pauseGame(): void {
     this.gamePaused = true;
     this.time.paused = true;
     this.tweens.pauseAll();
+    this.music.pause();
     this.pauseText.setVisible(true);
   }
 
@@ -340,6 +528,7 @@ export class GameScene extends Phaser.Scene {
     this.gamePaused = false;
     this.time.paused = false;
     this.tweens.resumeAll();
+    this.music.resume();
     this.pauseText.setVisible(false);
   }
 
@@ -380,7 +569,15 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(35).setVisible(false);
 
     this.pauseText.setInteractive({ useHandCursor: true });
-    this.pauseText.on("pointerdown", () => this.resumeGame());
+    this.pauseText.on("pointerdown", () => {
+      if (this.confirmPromptActive) return;
+      this.resumeGame();
+    });
+
+    this.confirmPromptText = this.add.text(CANVAS_W / 2, CANVAS_H / 2 + 48, CONFIRM_NEW_GAME, {
+      ...PROMPT_STYLE,
+      fontSize: "28px",
+    }).setOrigin(0.5).setDepth(36).setVisible(false);
 
     this.updateHUD();
   }
@@ -409,6 +606,7 @@ export class GameScene extends Phaser.Scene {
     this.gameOverText.setVisible(true);
     this.time.removeAllEvents();
     this.tweens.killAll();
+    this.music.stop();
   }
 
   update(): void {
