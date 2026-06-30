@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import {
   createGameState,
+  KARMA_KAWAII_ESCAPE,
   KARMA_KAWAII_HIT,
   KARMA_MAX,
   KARMA_MONSTER_HIT,
@@ -25,9 +26,8 @@ const KARMA_BAR_Y = 34;
 const KARMA_BAR_W = 180;
 const KARMA_BAR_H = 12;
 const DARK_PAUSE_MS = 2200;
-const DOUBLE_CLICK_MS = 350;
-const DOUBLE_CLICK_DIST = 14;
-
+const KARMA_BLINK_MS = 90;
+const KARMA_BLINK_REPEATS = 2;
 const TITLE_Y = CANVAS_H / 2 - 88;
 const PROMPT_Y = CANVAS_H / 2 + 52;
 const PROMPT_CONTROLS_Y = CANVAS_H / 2 + 118;
@@ -43,7 +43,7 @@ const PROMPT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
 
 const PROMPT_START = "any key/click to start";
 const PROMPT_CONTROLS = [
-  "P - pause the game",
+  "SPACE - pause the game",
   "N - restart the game",
   "Q - quit the game",
   "",
@@ -86,9 +86,6 @@ export class GameScene extends Phaser.Scene {
   private audioReady = false;
   private readonly music = new RetroMusic();
   private startHandler?: () => void;
-  private lastPauseClickAt = 0;
-  private lastPauseClickX = 0;
-  private lastPauseClickY = 0;
 
   constructor() {
     super({ key: "GameScene" });
@@ -103,7 +100,6 @@ export class GameScene extends Phaser.Scene {
     this.showTitleScreen();
     this.bindStartInput();
     this.bindGameplayKeys();
-    this.bindPausePointer();
   }
 
   // --- title ---
@@ -202,9 +198,9 @@ export class GameScene extends Phaser.Scene {
       gfx.fillRect(0, band.y, CANVAS_W, band.h);
     }
 
-    gfx.fillStyle(0x5a4870, 0.3);
+    gfx.fillStyle(0xd4b84a, 0.35);
     gfx.fillCircle(640, 74, 44);
-    gfx.fillStyle(0xc8c0a0, 0.9);
+    gfx.fillStyle(0xffe066, 0.95);
     gfx.fillCircle(640, 68, 20);
 
     gfx.fillStyle(0x3a2858, 0.45);
@@ -339,6 +335,7 @@ export class GameScene extends Phaser.Scene {
 
   private onCreatureDone(creature: Creature): void {
     if (creature.isRetired()) return;
+    if (creature.kind === "kawaii") this.applyKarma(KARMA_KAWAII_ESCAPE);
     creature.retire();
     this.finishWaveCreature();
   }
@@ -356,6 +353,9 @@ export class GameScene extends Phaser.Scene {
     const delta = creature.kind === "kawaii" ? KARMA_KAWAII_HIT : KARMA_MONSTER_HIT;
     this.applyKarma(delta);
 
+    if (creature.kind === "kawaii") this.music.playKawaiiHit();
+    else this.music.playMonsterHit();
+
     creature.hit();
     this.finishWaveCreature();
   }
@@ -364,6 +364,7 @@ export class GameScene extends Phaser.Scene {
     const prev = this.state.karma;
     this.state.karma = Phaser.Math.Clamp(this.state.karma + delta, 0, KARMA_MAX);
     this.updateHUD();
+    if (prev !== this.state.karma) this.blinkKarmaBar();
 
     if (this.state.karma >= KARMA_MAX) {
       this.triggerGameOver("cuteness killed you");
@@ -403,7 +404,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      if (key === "P") {
+      if (event.key === " ") {
         if (this.state.gameOver || !this.gameStarted || this.confirmPromptActive) return;
         if (this.gamePaused) this.resumeGame();
         else this.pauseGame();
@@ -420,28 +421,6 @@ export class GameScene extends Phaser.Scene {
         if (!this.gameStarted || this.state.gameOver || this.confirmPromptActive) return;
         this.showConfirmPrompt("quit");
       }
-    });
-  }
-
-  private bindPausePointer(): void {
-    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      if (this.state.gameOver || !this.gameStarted || this.confirmPromptActive) return;
-
-      const now = performance.now();
-      const elapsed = now - this.lastPauseClickAt;
-      const dx = Math.abs(pointer.x - this.lastPauseClickX);
-      const dy = Math.abs(pointer.y - this.lastPauseClickY);
-
-      if (elapsed <= DOUBLE_CLICK_MS && dx <= DOUBLE_CLICK_DIST && dy <= DOUBLE_CLICK_DIST) {
-        this.lastPauseClickAt = 0;
-        if (this.gamePaused) this.resumeGame();
-        else this.pauseGame();
-        return;
-      }
-
-      this.lastPauseClickAt = now;
-      this.lastPauseClickX = pointer.x;
-      this.lastPauseClickY = pointer.y;
     });
   }
 
@@ -600,10 +579,26 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private blinkKarmaBar(): void {
+    if (!this.karmaBar.visible) return;
+    this.tweens.killTweensOf([this.karmaBar, this.karmaLabel]);
+    this.karmaBar.setAlpha(1);
+    this.karmaLabel.setAlpha(1);
+    this.tweens.add({
+      targets: [this.karmaBar, this.karmaLabel],
+      alpha: 0.35,
+      duration: KARMA_BLINK_MS,
+      yoyo: true,
+      repeat: KARMA_BLINK_REPEATS,
+      ease: "Sine.InOut",
+    });
+  }
+
   private triggerGameOver(message: string): void {
     this.state.gameOver = true;
     this.gameOverText.setText(message);
     this.gameOverText.setVisible(true);
+    if (this.state.karma >= KARMA_MAX) this.music.playKawaiiVictory();
     this.time.removeAllEvents();
     this.tweens.killAll();
     this.music.stop();
