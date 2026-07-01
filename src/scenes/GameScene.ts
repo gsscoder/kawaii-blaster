@@ -31,6 +31,7 @@ const KARMA_BAR_Y = 34;
 const KARMA_BAR_W = 180;
 const KARMA_BAR_H = 12;
 const DARK_PAUSE_MS = 2200;
+const GAME_OVER_RESTART_DELAY_MS = 300;
 const KARMA_BLINK_MS = 90;
 const KARMA_BLINK_REPEATS = 2;
 const TITLE_Y = CANVAS_H / 2 - 88;
@@ -47,6 +48,9 @@ const PROMPT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
 };
 
 const PROMPT_START = "any key/click to start";
+const PROMPT_RESTART = "any key/click to restart";
+const GAME_OVER_Y = CANVAS_H / 2 + 16;
+const GAME_OVER_RESTART_Y = CANVAS_H / 2 - 40;
 const PROMPT_CONTROLS = [
   "SPACE - pause the game",
   "N - restart the game",
@@ -76,6 +80,7 @@ export class GameScene extends Phaser.Scene {
   private karmaLabel!: Phaser.GameObjects.Text;
   private karmaBar!: Phaser.GameObjects.Graphics;
   private gameOverText!: Phaser.GameObjects.Text;
+  private gameOverRestartText!: Phaser.GameObjects.Text;
   private darkPauseText!: Phaser.GameObjects.Text;
   private pauseText!: Phaser.GameObjects.Text;
   private confirmPromptText!: Phaser.GameObjects.Text;
@@ -92,6 +97,9 @@ export class GameScene extends Phaser.Scene {
   private audioReady = false;
   private readonly music = new RetroMusic();
   private startHandler?: () => void;
+  private gameOverRestartHandler?: () => void;
+  private gameOverRestartReady = false;
+  private gameOverRestartTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     super({ key: "GameScene" });
@@ -148,13 +156,14 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(40);
 
-    this.blinkPrompt();
+    this.blinkText(this.promptText);
   }
 
-  private blinkPrompt(): void {
-    this.tweens.killTweensOf(this.promptText);
+  private blinkText(text: Phaser.GameObjects.Text): void {
+    this.tweens.killTweensOf(text);
+    text.setAlpha(1);
     this.tweens.add({
-      targets: this.promptText,
+      targets: text,
       alpha: 0.3,
       duration: 750,
       yoyo: true,
@@ -188,6 +197,47 @@ export class GameScene extends Phaser.Scene {
     const keyboard = this.input.keyboard;
     if (keyboard !== null) keyboard.off("keydown", handler);
     this.startHandler = undefined;
+  }
+
+  private armGameOverRestart(): void {
+    this.gameOverRestartReady = false;
+    this.clearGameOverRestartTimer();
+    this.gameOverRestartTimer = setTimeout(() => {
+      this.gameOverRestartTimer = null;
+      if (!this.state.gameOver) return;
+      this.gameOverRestartReady = true;
+      this.bindGameOverRestart();
+    }, GAME_OVER_RESTART_DELAY_MS);
+  }
+
+  private bindGameOverRestart(): void {
+    const engage = (): void => {
+      if (!this.state.gameOver || !this.gameOverRestartReady) return;
+      this.gameOverRestartReady = false;
+      this.unbindGameOverRestart();
+      this.restartGame();
+    };
+    this.gameOverRestartHandler = engage;
+    this.input.once("pointerdown", engage);
+    const keyboard = this.input.keyboard;
+    if (keyboard !== null) keyboard.once("keydown", engage);
+  }
+
+  private clearGameOverRestartTimer(): void {
+    if (this.gameOverRestartTimer === null) return;
+    clearTimeout(this.gameOverRestartTimer);
+    this.gameOverRestartTimer = null;
+  }
+
+  private unbindGameOverRestart(): void {
+    this.gameOverRestartReady = false;
+    this.clearGameOverRestartTimer();
+    const handler = this.gameOverRestartHandler;
+    if (handler === undefined) return;
+    this.input.off("pointerdown", handler);
+    const keyboard = this.input.keyboard;
+    if (keyboard !== null) keyboard.off("keydown", handler);
+    this.gameOverRestartHandler = undefined;
   }
 
   private startGame(): void {
@@ -373,6 +423,7 @@ export class GameScene extends Phaser.Scene {
 
     const delta = creature.kind === "kawaii" ? KARMA_KAWAII_HIT : KARMA_MONSTER_HIT;
     this.applyKarma(delta);
+    if (this.state.gameOver) return;
 
     if (creature.kind === "kawaii") this.music.playKawaiiHit();
     else this.music.playMonsterHit();
@@ -472,6 +523,8 @@ export class GameScene extends Phaser.Scene {
 
   private restartGame(): void {
     this.resetGameplay();
+    this.karmaLabel.setVisible(true);
+    this.karmaBar.setVisible(true);
     this.music.playGame(true);
     this.updateHUD();
     this.scheduleWave();
@@ -498,6 +551,10 @@ export class GameScene extends Phaser.Scene {
     this.karmaPaused = false;
     this.darkPauseText.setVisible(false);
     this.gameOverText.setVisible(false);
+    this.tweens.killTweensOf(this.gameOverRestartText);
+    this.gameOverRestartText.setVisible(false);
+    this.gameOverRestartText.setAlpha(1);
+    this.unbindGameOverRestart();
 
     if (this.gamePaused) {
       this.gamePaused = false;
@@ -553,7 +610,13 @@ export class GameScene extends Phaser.Scene {
       align: "center",
     }).setOrigin(0.5).setDepth(30).setVisible(false);
 
-    this.gameOverText = this.add.text(CANVAS_W / 2, CANVAS_H / 2, "cuteness killed you", {
+    this.gameOverRestartText = this.add
+      .text(CANVAS_W / 2, GAME_OVER_RESTART_Y, PROMPT_RESTART, PROMPT_STYLE)
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setVisible(false);
+
+    this.gameOverText = this.add.text(CANVAS_W / 2, GAME_OVER_Y, "cuteness killed you", {
       fontSize: "40px",
       color: "#ffb0d8",
       stroke: "#1a0818",
@@ -618,12 +681,20 @@ export class GameScene extends Phaser.Scene {
 
   private triggerGameOver(message: string): void {
     this.state.gameOver = true;
+    this.clearCreatures();
+    this.unbindGameOverRestart();
+    this.karmaLabel.setVisible(false);
+    this.karmaBar.setVisible(false);
     this.gameOverText.setText(message);
     this.gameOverText.setVisible(true);
     if (this.state.karma >= KARMA_MAX) this.music.playKawaiiVictory();
     this.time.removeAllEvents();
     this.tweens.killAll();
     this.music.stop();
+    this.gameOverRestartText.setVisible(true);
+    this.gameOverRestartText.setAlpha(1);
+    this.blinkText(this.gameOverRestartText);
+    this.armGameOverRestart();
   }
 
   update(): void {
