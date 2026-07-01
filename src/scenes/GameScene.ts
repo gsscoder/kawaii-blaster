@@ -11,6 +11,7 @@ import { Kawaii } from "../sprites/Kawaii";
 import { Monster } from "../sprites/Monster";
 import type { Creature } from "../sprites/Creature";
 import { RetroMusic } from "../audio/RetroMusic";
+import { APP_VERSION } from "../version";
 
 const CANVAS_W = 800;
 const CANVAS_H = 450;
@@ -21,6 +22,10 @@ const WAVE_PAUSE_MAX = 2200;
 const HIDE_Y = GROUND_Y + 60;
 const SPAWN_MARGIN = 60;
 const SPAWN_GAP = 90;
+const KAWAII_PER_WAVE_MIN = 1;
+const KAWAII_PER_WAVE_MAX = 2;
+const MONSTER_EXTRA_MIN = 1;
+const MONSTER_EXTRA_MAX = 2;
 const KARMA_BAR_X = 12;
 const KARMA_BAR_Y = 34;
 const KARMA_BAR_W = 180;
@@ -76,6 +81,7 @@ export class GameScene extends Phaser.Scene {
   private confirmPromptText!: Phaser.GameObjects.Text;
   private titleText!: Phaser.GameObjects.Text;
   private promptText!: Phaser.GameObjects.Text;
+  private versionText!: Phaser.GameObjects.Text;
   private waveRemaining = 0;
   private karmaPaused = false;
   private gamePaused = false;
@@ -97,12 +103,26 @@ export class GameScene extends Phaser.Scene {
     this.drawBackdrop();
     this.drawLandscape();
     this.buildHUD();
+    this.buildVersionLabel();
     this.showTitleScreen();
     this.bindStartInput();
     this.bindGameplayKeys();
   }
 
   // --- title ---
+
+  private buildVersionLabel(): void {
+    this.versionText = this.add
+      .text(CANVAS_W - 12, CANVAS_H - 10, `Version ${APP_VERSION}`, {
+        fontFamily: "VT323, monospace",
+        fontSize: "16px",
+        color: "#7a6888",
+        stroke: "#1a0818",
+        strokeThickness: 2,
+      })
+      .setOrigin(1, 1)
+      .setDepth(40);
+  }
 
   private showTitleScreen(prompt: string = PROMPT_START): void {
     this.titleText = this.add.text(CANVAS_W / 2, TITLE_Y, "Kawaii Blaster", {
@@ -177,6 +197,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.promptText);
     this.titleText.destroy();
     this.promptText.destroy();
+    this.versionText.setVisible(false);
     this.karmaLabel.setVisible(true);
     this.karmaBar.setVisible(true);
     this.scheduleWave();
@@ -282,8 +303,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const kawaiiCount = Phaser.Math.Between(1, 2);
-    const monsterCount = Phaser.Math.Between(1, 3);
+    const kawaiiCount = Phaser.Math.Between(KAWAII_PER_WAVE_MIN, KAWAII_PER_WAVE_MAX);
+    const monsterCount = kawaiiCount + Phaser.Math.Between(MONSTER_EXTRA_MIN, MONSTER_EXTRA_MAX);
     const total = kawaiiCount + monsterCount;
 
     this.waveRemaining = total;
@@ -462,6 +483,7 @@ export class GameScene extends Phaser.Scene {
     this.karmaLabel.setVisible(false);
     this.karmaBar.setVisible(false);
     this.music.playAttract();
+    this.versionText.setVisible(true);
     this.showTitleScreen(PROMPT_CONTROLS);
     this.bindStartInput();
   }

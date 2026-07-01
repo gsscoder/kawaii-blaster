@@ -21,13 +21,14 @@ export abstract class Creature extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, x: number, hideY: number, kind: CreatureKind) {
     super(scene, x, hideY);
     this.kind = kind;
-
-    const gfx = scene.add.graphics();
-    this.drawSprite(gfx);
-    this.add(gfx);
-
     scene.add.existing(this);
     this.setDepth(5);
+  }
+
+  protected mountSprite(): void {
+    const gfx = this.scene.add.graphics();
+    this.drawSprite(gfx);
+    this.add(gfx);
     this.setInteractive(
       new Phaser.Geom.Rectangle(-HIT_W / 2, -HIT_H / 2, HIT_W, HIT_H),
       Phaser.Geom.Rectangle.Contains,

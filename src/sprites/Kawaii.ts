@@ -9,6 +9,8 @@ const BURY_MS = motionMs(130);
 const HIT_FADE_MS = motionMs(120);
 const HEART_BREAK_MS = motionMs(450);
 
+export type KawaiiVariant = "bunny" | "kitten";
+
 type BunnyPalette = {
   ear: number;
   earInner: number;
@@ -30,8 +32,87 @@ const BUNNY_WHITE: BunnyPalette = {
   nose: 0x999999,
 };
 
+type KittenPalette = {
+  fur: number;
+  accent: number;
+  detail: number;
+};
+
+const KITTEN_WHITE: KittenPalette = {
+  fur: 0xffffff,
+  accent: 0xff8cc0,
+  detail: 0x2a1830,
+};
+
+const KITTEN_PINK: KittenPalette = {
+  fur: 0xff9ec0,
+  accent: 0xff5ca8,
+  detail: 0x1a1028,
+};
+
+function pickKawaiiVariant(): KawaiiVariant {
+  return Phaser.Math.Between(0, 1) === 0 ? "bunny" : "kitten";
+}
+
 function pickBunnyPalette(): BunnyPalette {
   return Phaser.Math.Between(0, 1) === 0 ? BUNNY_PINK : BUNNY_WHITE;
+}
+
+function pickKittenPalette(): KittenPalette {
+  return Phaser.Math.Between(0, 1) === 0 ? KITTEN_WHITE : KITTEN_PINK;
+}
+
+function drawBunnySprite(gfx: Phaser.GameObjects.Graphics): void {
+  const palette = pickBunnyPalette();
+
+  gfx.fillStyle(palette.ear);
+  gfx.fillRect(-5, -18, 5, 13);
+  gfx.fillRect(1, -18, 5, 13);
+
+  gfx.fillStyle(palette.earInner);
+  gfx.fillRect(-4, -16, 3, 9);
+  gfx.fillRect(2, -16, 3, 9);
+
+  gfx.fillStyle(palette.body);
+  gfx.fillCircle(0, -4, 10);
+  gfx.fillEllipse(0, 8, 14, 11);
+
+  gfx.fillStyle(0x2a1830);
+  gfx.fillCircle(-4, -5, 2);
+  gfx.fillCircle(4, -5, 2);
+
+  gfx.fillStyle(palette.nose);
+  gfx.fillCircle(0, -2, 2);
+}
+
+function drawKittenSprite(gfx: Phaser.GameObjects.Graphics): void {
+  const palette = pickKittenPalette();
+
+  gfx.fillStyle(palette.fur);
+  gfx.fillTriangle(-9, -12, -4, -22, -1, -11);
+  gfx.fillTriangle(9, -12, 4, -22, 1, -11);
+
+  gfx.fillStyle(palette.accent);
+  gfx.fillTriangle(-7, -13, -5, -19, -2, -12);
+  gfx.fillTriangle(7, -13, 5, -19, 2, -12);
+
+  gfx.fillStyle(palette.fur);
+  gfx.fillCircle(0, -5, 9);
+  gfx.fillEllipse(0, 7, 11, 9);
+  gfx.fillEllipse(11, 5, 4, 9);
+
+  gfx.fillStyle(palette.detail);
+  gfx.fillCircle(-3, -6, 2);
+  gfx.fillCircle(3, -6, 2);
+
+  gfx.fillStyle(palette.accent);
+  gfx.fillTriangle(0, -3, -2, 0, 2, 0);
+
+  gfx.lineStyle(1, palette.detail);
+  gfx.lineBetween(-11, -4, -5, -3);
+  gfx.lineBetween(-11, -1, -5, -1);
+  gfx.lineBetween(11, -4, 5, -3);
+  gfx.lineBetween(11, -1, 5, -1);
 }
 
 function drawHeartHalf(gfx: Phaser.GameObjects.Graphics, side: number): void {
@@ -61,31 +142,25 @@ function drawHeartHalf(gfx: Phaser.GameObjects.Graphics, side: number): void {
 }
 
 export class Kawaii extends Creature {
-  constructor(scene: Phaser.Scene, x: number, hideY: number) {
+  readonly variant: KawaiiVariant;
+
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    hideY: number,
+    variant: KawaiiVariant = pickKawaiiVariant(),
+  ) {
     super(scene, x, hideY, "kawaii");
+    this.variant = variant;
+    this.mountSprite();
   }
 
   protected drawSprite(gfx: Phaser.GameObjects.Graphics): void {
-    const palette = pickBunnyPalette();
-
-    gfx.fillStyle(palette.ear);
-    gfx.fillRect(-5, -18, 5, 13);
-    gfx.fillRect(1, -18, 5, 13);
-
-    gfx.fillStyle(palette.earInner);
-    gfx.fillRect(-4, -16, 3, 9);
-    gfx.fillRect(2, -16, 3, 9);
-
-    gfx.fillStyle(palette.body);
-    gfx.fillCircle(0, -4, 10);
-    gfx.fillEllipse(0, 8, 14, 11);
-
-    gfx.fillStyle(0x2a1830);
-    gfx.fillCircle(-4, -5, 2);
-    gfx.fillCircle(4, -5, 2);
-
-    gfx.fillStyle(palette.nose);
-    gfx.fillCircle(0, -2, 2);
+    if (this.variant === "bunny") {
+      drawBunnySprite(gfx);
+      return;
+    }
+    drawKittenSprite(gfx);
   }
 
   protected playHitEffect(onComplete: () => void): void {
