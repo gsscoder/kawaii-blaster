@@ -1,5 +1,7 @@
 # Kawaii Blaster
 
+Version 0.2.0
+
 A browser-based 2D arcade shooter with a darkly comedic twist: **shoot the cute ones, spare the monsters.**
 
 Parody-first. Pixel art. One level. The joke is on you.

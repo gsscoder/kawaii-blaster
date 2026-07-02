@@ -9,38 +9,31 @@ type SkeletonPalette = {
   socket: number;
 };
 
-const SKELETON_GRAY: SkeletonPalette = {
-  bone: 0xd8ccb0,
-  boneDark: 0xc8bca0,
+const SKELETON_WHITE: SkeletonPalette = {
+  bone: 0xe8dcc8,
+  boneDark: 0xc8b8a0,
   socket: 0x1a1028,
 };
 
-const SKELETON_GREEN: SkeletonPalette = {
-  bone: 0x6a8a4a,
-  boneDark: 0x4a6a32,
-  socket: 0x142010,
+const SKELETON_GRAY: SkeletonPalette = {
+  bone: 0xa8a090,
+  boneDark: 0x888070,
+  socket: 0x1a1028,
 };
 
-type ZombiePalette = {
-  flesh: number;
-  fleshDark: number;
-  rot: number;
-  socket: number;
-};
-
-const ZOMBIE_GREEN: ZombiePalette = {
-  flesh: 0x5a9a4a,
-  fleshDark: 0x3a6a32,
-  rot: 0x2a4a22,
-  socket: 0x142010,
-};
-
-const ZOMBIE_GRAY: ZombiePalette = {
-  flesh: 0x8a9a7a,
-  fleshDark: 0x6a7a62,
-  rot: 0x4a5248,
-  socket: 0x1a1818,
-};
+const ZOMBIE = {
+  skin: 0x7aaa5a,
+  skinDark: 0x5a8a42,
+  shirt: 0x5a6a3a,
+  shirtDark: 0x3a4a28,
+  pants: 0x3a4a32,
+  pantsDark: 0x2a3a22,
+  belt: 0x2a2818,
+  eye: 0xe8c820,
+  socket: 0x1a1810,
+  teeth: 0xd8d8c0,
+  outline: 0x1a1810,
+} as const;
 
 const RISE_MS = motionMs(150);
 const BURY_MS = motionMs(130);
@@ -53,65 +46,243 @@ function pickMonsterVariant(): MonsterVariant {
 }
 
 function pickSkeletonPalette(): SkeletonPalette {
-  return Math.random() < 0.5 ? SKELETON_GRAY : SKELETON_GREEN;
+  return Math.random() < 0.5 ? SKELETON_WHITE : SKELETON_GRAY;
 }
 
-function pickZombiePalette(): ZombiePalette {
-  return Math.random() < 0.5 ? ZOMBIE_GREEN : ZOMBIE_GRAY;
+function drawSkeletonBones(gfx: Phaser.GameObjects.Graphics, palette: SkeletonPalette): void {
+  const outline = 0x0a0808;
+
+  // Blocky skull (inspired by classic pixel art skeleton)
+  gfx.fillStyle(outline);
+  gfx.fillRect(-8, -17, 16, 13);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-7, -16, 14, 11);
+
+  // Rectangular eye sockets
+  gfx.fillStyle(palette.socket);
+  gfx.fillRect(-6, -13, 4, 4);
+  gfx.fillRect(2, -13, 4, 4);
+
+  // Nose cavity
+  gfx.fillStyle(palette.socket);
+  gfx.fillRect(-1, -8, 2, 2);
+
+  // Jaw / teeth line
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(-5, -5, 10, 2);
+  gfx.fillStyle(outline);
+  gfx.fillRect(-4, -4, 1, 1);
+  gfx.fillRect(-1, -4, 1, 1);
+  gfx.fillRect(2, -4, 1, 1);
+
+  // Neck
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-2, -4, 4, 3);
+
+  // Shoulders
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-9, -1, 18, 3);
+
+  // Torso base (shadow)
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(-8, 2, 16, 14);
+
+  // Distinct horizontal ribs (more detail)
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-8, 2, 16, 2);
+  gfx.fillRect(-8, 5, 16, 2);
+  gfx.fillRect(-8, 8, 16, 2);
+  gfx.fillRect(-8, 11, 16, 2);
+  gfx.fillRect(-8, 14, 16, 2);
+
+  // Spine column
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-1, 2, 2, 14);
+
+  // Side rib segments for extra retro detail
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(-9, 3, 2, 1);
+  gfx.fillRect(-9, 6, 2, 1);
+  gfx.fillRect(-9, 9, 2, 1);
+  gfx.fillRect(-9, 12, 2, 1);
+  gfx.fillRect(7, 3, 2, 1);
+  gfx.fillRect(7, 6, 2, 1);
+  gfx.fillRect(7, 9, 2, 1);
+  gfx.fillRect(7, 12, 2, 1);
+
+  // Pelvis
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(-7, 15, 14, 3);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-5, 16, 10, 2);
+
+  // Left leg — femur, knee, tibia, foot
+  gfx.fillStyle(outline);
+  gfx.fillRect(-8, 17, 4, 9);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-7, 18, 2, 7);
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(-7, 25, 2, 2);
+  gfx.fillStyle(outline);
+  gfx.fillRect(-8, 27, 4, 8);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-7, 28, 2, 6);
+  gfx.fillStyle(outline);
+  gfx.fillRect(-10, 34, 7, 3);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-9, 35, 5, 2);
+
+  // Right leg — femur, knee, tibia, foot
+  gfx.fillStyle(outline);
+  gfx.fillRect(4, 17, 4, 9);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(5, 18, 2, 7);
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(5, 25, 2, 2);
+  gfx.fillStyle(outline);
+  gfx.fillRect(4, 27, 4, 8);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(5, 28, 2, 6);
+  gfx.fillStyle(outline);
+  gfx.fillRect(3, 34, 7, 3);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(4, 35, 5, 2);
+
+  // Left arm — upper arm, elbow, forearm, fingers
+  gfx.fillStyle(outline);
+  gfx.fillRect(-15, 0, 4, 10);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-14, 1, 2, 8);
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(-14, 9, 2, 2);
+  gfx.fillStyle(outline);
+  gfx.fillRect(-17, 10, 4, 9);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(-16, 11, 2, 7);
+  gfx.fillRect(-18, 18, 2, 3);
+  gfx.fillRect(-16, 19, 2, 3);
+  gfx.fillRect(-14, 18, 2, 3);
+
+  // Right arm — upper arm, elbow, forearm, fingers
+  gfx.fillStyle(outline);
+  gfx.fillRect(11, 0, 4, 10);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(12, 1, 2, 8);
+  gfx.fillStyle(palette.boneDark);
+  gfx.fillRect(12, 9, 2, 2);
+  gfx.fillStyle(outline);
+  gfx.fillRect(13, 10, 4, 9);
+  gfx.fillStyle(palette.bone);
+  gfx.fillRect(14, 11, 2, 7);
+  gfx.fillRect(16, 18, 2, 3);
+  gfx.fillRect(14, 19, 2, 3);
+  gfx.fillRect(12, 18, 2, 3);
 }
 
 function drawSkeletonSprite(gfx: Phaser.GameObjects.Graphics): void {
-  const palette = pickSkeletonPalette();
-
-  gfx.fillStyle(palette.bone);
-  gfx.fillCircle(0, -8, 9);
-
-  gfx.fillStyle(palette.socket);
-  gfx.fillCircle(-4, -9, 3);
-  gfx.fillCircle(4, -9, 3);
-
-  gfx.fillStyle(palette.boneDark);
-  gfx.fillRect(-6, -2, 12, 5);
-
-  gfx.lineStyle(2, palette.bone);
-  gfx.lineBetween(0, 0, 0, 14);
-  for (let x = -8; x <= 8; x += 4) {
-    gfx.lineBetween(x, 4, x, 14);
-  }
-
-  gfx.lineBetween(-10, 2, -6, 8);
-  gfx.lineBetween(10, 2, 6, 8);
+  drawSkeletonBones(gfx, pickSkeletonPalette());
 }
 
 function drawZombieSprite(gfx: Phaser.GameObjects.Graphics): void {
-  const palette = pickZombiePalette();
+  // Head — large blocky skull-face (reference template)
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(-9, -18, 18, 14);
+  gfx.fillStyle(ZOMBIE.skin);
+  gfx.fillRect(-8, -17, 16, 12);
+  gfx.fillStyle(ZOMBIE.skinDark);
+  gfx.fillRect(-8, -17, 16, 3);
 
-  gfx.fillStyle(palette.flesh);
-  gfx.fillEllipse(0, -7, 18, 16);
+  // Hollow sockets with glowing yellow eyes
+  gfx.fillStyle(ZOMBIE.socket);
+  gfx.fillRect(-6, -13, 4, 4);
+  gfx.fillRect(2, -13, 4, 4);
+  gfx.fillStyle(ZOMBIE.eye);
+  gfx.fillRect(-5, -12, 2, 2);
+  gfx.fillRect(3, -12, 2, 2);
 
-  gfx.fillStyle(palette.fleshDark);
-  gfx.fillEllipse(0, 6, 16, 14);
+  // Sunken nose and open jaw
+  gfx.fillStyle(ZOMBIE.socket);
+  gfx.fillRect(-1, -8, 2, 2);
+  gfx.fillRect(-5, -4, 10, 4);
+  gfx.fillStyle(ZOMBIE.teeth);
+  gfx.fillRect(-4, -4, 2, 2);
+  gfx.fillRect(-1, -4, 2, 2);
+  gfx.fillRect(2, -4, 2, 2);
 
-  gfx.fillStyle(palette.rot);
-  gfx.fillRect(-7, -4, 5, 4);
-  gfx.fillRect(4, 2, 6, 3);
-  gfx.fillRect(-5, 8, 4, 3);
+  // Neck
+  gfx.fillStyle(ZOMBIE.skin);
+  gfx.fillRect(-2, -4, 4, 3);
 
-  gfx.fillStyle(palette.socket);
-  gfx.fillCircle(-4, -8, 3);
-  gfx.fillCircle(5, -7, 2);
+  // Tattered short-sleeve shirt
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(-8, -1, 16, 16);
+  gfx.fillStyle(ZOMBIE.shirt);
+  gfx.fillRect(-7, 0, 14, 14);
+  gfx.fillStyle(ZOMBIE.shirtDark);
+  gfx.fillRect(-6, 2, 5, 4);
+  gfx.fillRect(2, 5, 4, 3);
+  gfx.fillRect(-3, 9, 3, 2);
+  gfx.fillRect(1, 11, 4, 2);
 
-  gfx.fillStyle(palette.fleshDark);
-  gfx.fillRect(-4, -1, 9, 4);
+  // Ragged short sleeves (expose green arms below)
+  gfx.fillStyle(ZOMBIE.shirt);
+  gfx.fillRect(-9, 0, 3, 4);
+  gfx.fillRect(6, 0, 3, 4);
 
-  gfx.fillStyle(palette.socket);
-  gfx.fillRect(-2, 0, 5, 2);
+  // Belt
+  gfx.fillStyle(ZOMBIE.belt);
+  gfx.fillRect(-7, 13, 14, 2);
 
-  gfx.lineStyle(2, palette.fleshDark);
-  gfx.lineBetween(-11, 4, -8, 12);
-  gfx.lineBetween(10, 3, 7, 11);
-  gfx.lineBetween(-3, 12, -3, 16);
-  gfx.lineBetween(3, 12, 4, 16);
+  // Pants — wide stance, separated from torso
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(-11, 15, 6, 20);
+  gfx.fillRect(5, 15, 6, 20);
+  gfx.fillStyle(ZOMBIE.pants);
+  gfx.fillRect(-10, 16, 4, 18);
+  gfx.fillRect(6, 16, 4, 18);
+  gfx.fillStyle(ZOMBIE.pantsDark);
+  gfx.fillRect(-10, 24, 4, 2);
+  gfx.fillRect(6, 25, 4, 2);
+  gfx.fillRect(-9, 17, 2, 3);
+  gfx.fillRect(7, 18, 2, 2);
+
+  // Feet — sickly green, splayed outward
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(-13, 34, 8, 4);
+  gfx.fillRect(5, 34, 8, 4);
+  gfx.fillStyle(ZOMBIE.skin);
+  gfx.fillRect(-12, 35, 6, 2);
+  gfx.fillRect(6, 35, 6, 2);
+
+  // Left arm — hangs at side with clear gap from body
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(-17, 0, 4, 10);
+  gfx.fillStyle(ZOMBIE.skin);
+  gfx.fillRect(-16, 1, 2, 8);
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(-18, 10, 4, 10);
+  gfx.fillStyle(ZOMBIE.skin);
+  gfx.fillRect(-17, 11, 2, 8);
+  gfx.fillStyle(ZOMBIE.skinDark);
+  gfx.fillRect(-17, 18, 2, 2);
+  gfx.fillRect(-19, 20, 2, 3);
+  gfx.fillRect(-17, 21, 2, 3);
+  gfx.fillRect(-15, 20, 2, 3);
+
+  // Right arm — raised forward, elbow bent, claw hand
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(12, -1, 4, 10);
+  gfx.fillStyle(ZOMBIE.skin);
+  gfx.fillRect(13, 0, 2, 8);
+  gfx.fillStyle(ZOMBIE.outline);
+  gfx.fillRect(14, -11, 4, 12);
+  gfx.fillStyle(ZOMBIE.skin);
+  gfx.fillRect(15, -10, 2, 10);
+  gfx.fillStyle(ZOMBIE.skinDark);
+  gfx.fillRect(16, -14, 2, 3);
+  gfx.fillRect(18, -13, 2, 3);
+  gfx.fillRect(16, -11, 2, 2);
+  gfx.fillRect(18, -10, 2, 2);
 }
 
 export class Monster extends Creature {
